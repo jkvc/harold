@@ -81,25 +81,33 @@ export function decideInjectedInboxAction(input: InjectedInboxDecisionInput) {
   };
 }
 
+export function buildModelMessages(
+  previousMessages: ClaudeMessage[],
+  turnMessages: ClaudeMessage[],
+) {
+  return [...previousMessages, ...turnMessages];
+}
+
 export async function runHaroldLoop({
   visitorId,
   model = DEFAULT_HAROLD_MODEL,
 }: RunHaroldLoopParams) {
   const runId = crypto.randomUUID();
-  const turnMessages: ClaudeMessage[] = await reconstructRunMessages(visitorId);
+  const previousMessages: ClaudeMessage[] = await reconstructRunMessages(visitorId);
+  const turnMessages: ClaudeMessage[] = [];
 
   await getDb().insert(runs).values({
     id: runId,
     visitorId,
     status: "running",
     model,
-    turnMessages,
+    turnMessages: [],
   });
 
   const acquired = await acquireRunLock(visitorId, runId);
   if (!acquired) {
     await markPendingWake(visitorId);
-    await finishRun(runId, turnMessages, "completed", "Another run is active.");
+    await deleteRun(runId);
     return;
   }
 
@@ -130,7 +138,7 @@ export async function runHaroldLoop({
         max_tokens: 1200,
         system: HAROLD_SYSTEM_PROMPT,
         tools: HAROLD_TOOLS as never,
-        messages: turnMessages as never,
+        messages: buildModelMessages(previousMessages, turnMessages) as never,
       });
 
       const assistantContent = response.content as unknown[];
@@ -294,6 +302,10 @@ async function updateRunMessages(runId: string, turnMessages: ClaudeMessage[]) {
     .update(runs)
     .set({ turnMessages })
     .where(eq(runs.id, runId));
+}
+
+async function deleteRun(runId: string) {
+  await getDb().delete(runs).where(eq(runs.id, runId));
 }
 
 async function runInjectedCheckInbox(

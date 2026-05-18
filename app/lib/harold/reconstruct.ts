@@ -1,10 +1,16 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/app/lib/db";
 import { runs } from "@/app/lib/db/schema";
 
 type ClaudeMessage = {
   role: "user" | "assistant";
   content: unknown;
+};
+
+type ReconstructableRun = {
+  status: string;
+  error: string | null;
+  turnMessages: unknown;
 };
 
 const SERVER_TOOL_BLOCK_TYPES = new Set([
@@ -18,18 +24,39 @@ const MAX_RUNS_FETCH = 12;
 
 export async function reconstructRunMessages(visitorId: string) {
   const runRows = await getDb()
-    .select({ turnMessages: runs.turnMessages })
+    .select({
+      status: runs.status,
+      error: runs.error,
+      turnMessages: runs.turnMessages,
+    })
     .from(runs)
-    .where(eq(runs.visitorId, visitorId))
+    .where(
+      and(
+        eq(runs.visitorId, visitorId),
+        eq(runs.status, "completed"),
+        isNull(runs.error),
+      ),
+    )
     .orderBy(desc(runs.createdAt))
     .limit(MAX_RUNS_FETCH);
 
-  const messages = runRows
+  const messages = selectReconstructableRuns(runRows)
     .reverse()
     .flatMap((run) => coerceMessages(run.turnMessages))
     .map(pruneServerToolBlocks);
 
   return normalizeAlternatingMessages(messages);
+}
+
+export function selectReconstructableRuns<T extends ReconstructableRun>(
+  runRows: T[],
+) {
+  return runRows.filter(
+    (run) =>
+      run.status === "completed" &&
+      run.error === null &&
+      Array.isArray(run.turnMessages),
+  );
 }
 
 export function pruneServerToolBlocks(message: ClaudeMessage): ClaudeMessage {

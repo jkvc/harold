@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildModelMessages,
   decideInjectedInboxAction,
   decideSleepAction,
   injectInboxResult,
@@ -8,6 +9,7 @@ import type { HaroldEventPayload } from "@/app/lib/harold/types";
 import {
   normalizeAlternatingMessages,
   pruneServerToolBlocks,
+  selectReconstructableRuns,
 } from "@/app/lib/harold/reconstruct";
 import { isAfterInboxWatermark } from "@/app/lib/harold/tools";
 
@@ -165,6 +167,55 @@ describe("Harold runtime helpers", () => {
         hasMessages: true,
       }),
     ).toEqual({ inject: true, continueLoop: true });
+  });
+
+  it("builds model context without copying previous history into turn history", () => {
+    const previousMessages = [
+      { role: "user" as const, content: "old user" },
+      { role: "assistant" as const, content: "old Harold" },
+    ];
+    const turnMessages = [{ role: "user" as const, content: "new wake" }];
+
+    expect(buildModelMessages(previousMessages, turnMessages)).toEqual([
+      ...previousMessages,
+      ...turnMessages,
+    ]);
+    expect(turnMessages).toEqual([{ role: "user", content: "new wake" }]);
+  });
+
+  it("reconstructs only successful completed runs", () => {
+    // Failed and skipped/contending wakes can contain partial or duplicated
+    // prompt state. They must not become future Claude history.
+    expect(
+      selectReconstructableRuns([
+        {
+          status: "completed",
+          error: null,
+          turnMessages: [{ role: "user", content: "keep" }],
+        },
+        {
+          status: "failed",
+          error: "request_too_large",
+          turnMessages: [{ role: "user", content: "drop failed" }],
+        },
+        {
+          status: "completed",
+          error: "Another run is active.",
+          turnMessages: [{ role: "user", content: "drop skipped" }],
+        },
+        {
+          status: "completed",
+          error: null,
+          turnMessages: null,
+        },
+      ]),
+    ).toEqual([
+      {
+        status: "completed",
+        error: null,
+        turnMessages: [{ role: "user", content: "keep" }],
+      },
+    ]);
   });
 
   it("keeps UI-only status out of durable event payloads", () => {

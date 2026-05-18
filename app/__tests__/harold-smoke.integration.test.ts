@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { ApiResponse } from "@/app/lib/api-types";
 import { getDb } from "@/app/lib/db";
-import { haroldState } from "@/app/lib/db/schema";
+import { haroldState, runs } from "@/app/lib/db/schema";
 import type {
   DebugEventPageDto,
   HaroldEventPayload,
@@ -25,7 +25,10 @@ describe("Harold integration smoke", () => {
         "Content-Type": "application/json",
         Cookie: cookie,
       },
-      body: JSON.stringify({ content: "Say a very short hello." }),
+      body: JSON.stringify({
+        content:
+          "Please send one short Harold chat message back to me using send_message.",
+      }),
     });
     const messagePayload = (await messageResponse.json()) as ApiResponse<MessageDto>;
     expect(messagePayload.success).toBe(true);
@@ -74,6 +77,9 @@ describe("Harold integration smoke", () => {
       .limit(1);
     expect(state?.status).toBe("sleeping");
     expect(state?.activeRunId).toBeNull();
+
+    const completedRunIds = getCompletedRunIds(debugEvents);
+    await expectPersistedRunHistoryIsCurrentTurnOnly(completedRunIds[0]);
   });
 
   it("does not re-read already processed inbox messages across wakes", async () => {
@@ -105,6 +111,8 @@ describe("Harold integration smoke", () => {
     expect(secondInboxResult?.messages?.map((message) => message.id)).not.toContain(
       firstMessage.id,
     );
+    await expectPersistedRunHistoryIsCurrentTurnOnly(completedRunIds[0]);
+    await expectPersistedRunHistoryIsCurrentTurnOnly(completedRunIds[1]);
   });
 
   it("does not render assistant text unless send_message is used", async () => {
@@ -193,6 +201,36 @@ function getFirstCheckInboxResultForRun(
   return event?.payload.type === "tool_complete"
     ? event.payload.result
     : undefined;
+}
+
+async function expectPersistedRunHistoryIsCurrentTurnOnly(runId: string | undefined) {
+  expect(runId).toBeTruthy();
+
+  const [run] = await getDb()
+    .select({ turnMessages: runs.turnMessages })
+    .from(runs)
+    .where(eq(runs.id, runId ?? ""))
+    .limit(1);
+
+  const turnMessages = Array.isArray(run?.turnMessages) ? run.turnMessages : [];
+  const wakeMessages = turnMessages.filter((message) => {
+    if (!message || typeof message !== "object") {
+      return false;
+    }
+
+    return (
+      "role" in message &&
+      (message as { role?: unknown }).role === "user" &&
+      "content" in message &&
+      (message as { content?: unknown }).content ===
+        "You've been woken up. check_inbox has already been called — its results are in your history. Start working."
+    );
+  });
+
+  // Regression guard for exponential history duplication: persisted turn history
+  // should describe this wake only, not copied reconstructed history.
+  expect(wakeMessages).toHaveLength(1);
+  expect(turnMessages.length).toBeLessThan(40);
 }
 
 async function sendUserMessage(cookie: string, content: string) {
