@@ -41,6 +41,43 @@ export default function Home() {
   const isLoadingOlderRef = useRef(false);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    function updateViewportSize() {
+      const viewport = window.visualViewport;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportOffsetTop = viewport?.offsetTop ?? 0;
+
+      root.style.setProperty("--harold-viewport-height", `${viewportHeight}px`);
+      root.style.setProperty(
+        "--harold-viewport-offset-top",
+        `${viewportOffsetTop}px`,
+      );
+
+      if (document.activeElement === draftRef.current) {
+        scrollMessagesToBottom("auto");
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    updateViewportSize();
+
+    window.visualViewport?.addEventListener("resize", updateViewportSize);
+    window.visualViewport?.addEventListener("scroll", updateViewportSize);
+    window.addEventListener("resize", updateViewportSize);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      root.style.removeProperty("--harold-viewport-height");
+      root.style.removeProperty("--harold-viewport-offset-top");
+      window.visualViewport?.removeEventListener("resize", updateViewportSize);
+      window.visualViewport?.removeEventListener("scroll", updateViewportSize);
+      window.removeEventListener("resize", updateViewportSize);
+    };
+  }, []);
+
+  useEffect(() => {
     function updateClock() {
       setCurrentTime(
         new Intl.DateTimeFormat(undefined, {
@@ -206,6 +243,12 @@ export default function Home() {
     void sendDraft();
   }
 
+  function handleDraftFocus() {
+    scrollMessagesToBottom("auto");
+    window.setTimeout(() => scrollMessagesToBottom("auto"), 150);
+    window.setTimeout(() => scrollMessagesToBottom("auto"), 350);
+  }
+
   function handleNewChat() {
     startNewChat();
     setMessages([]);
@@ -257,8 +300,8 @@ export default function Home() {
   }
 
   return (
-    <main className="harold-page min-h-screen">
-      <div className="harold-phone mx-auto flex h-[100dvh] max-w-[430px] flex-col overflow-hidden">
+    <main className="harold-page fixed inset-x-0 top-[var(--harold-viewport-offset-top,0px)] h-[var(--harold-viewport-height,100dvh)] overflow-hidden">
+      <div className="harold-phone mx-auto flex h-full max-w-[430px] flex-col overflow-hidden">
         <div className="harold-status-bar relative h-5 px-2 text-[11px] font-bold leading-none">
           <span className="harold-status-text absolute left-2 top-1/2 flex -translate-y-1/2 items-end gap-[2px]">
             <i className="fa-solid fa-signal text-[11px]" aria-hidden="true" />
@@ -290,6 +333,7 @@ export default function Home() {
 
         <section
           ref={scrollContainerRef}
+          data-message-scroll
           onScroll={handleMessageScroll}
           className="harold-chat-surface scrollbar-none flex-1 overflow-y-auto px-4 py-4"
         >
@@ -337,6 +381,7 @@ export default function Home() {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleDraftKeyDown}
+            onFocus={handleDraftFocus}
             disabled={!isReady}
             placeholder="Message"
             rows={1}
@@ -353,6 +398,20 @@ export default function Home() {
       </div>
     </main>
   );
+}
+
+function scrollMessagesToBottom(behavior: ScrollBehavior) {
+  const scrollContainer = document.querySelector<HTMLElement>(
+    "[data-message-scroll]",
+  );
+  if (!scrollContainer) {
+    return;
+  }
+
+  scrollContainer.scrollTo({
+    top: scrollContainer.scrollHeight,
+    behavior,
+  });
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
