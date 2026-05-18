@@ -58,7 +58,6 @@ Each phase ends with a verifiable milestone you can see and interact with. No ph
 - [ ] `check_inbox` tool: query messages since the durable watermark, track the newest seen message, and advance the durable watermark only after the wake completes successfully; engine injects results at wake start, after tool-use turns, and before sleep
 - [ ] `send_message` tool: insert message with `role=harold`, publish SSE event
 - [ ] `react_to` tool: store reaction on message, publish SSE event
-- [ ] `update_memory` tool: upsert memory row for visitor
 - [ ] Agent loop (`app/lib/harold/loop.ts`): Claude API call, tool execution, engine-managed inbox injection, pending-wake drain, final inbox check before sleep, transient failure event, `decideSleepAction`
 - [ ] Context reconstruction (`app/lib/harold/reconstruct.ts`): load recent runs, compact server web-search blocks, sanitize message alternation
 - [ ] `decideSleepAction` pure function
@@ -107,6 +106,8 @@ Each phase ends with a verifiable milestone you can see and interact with. No ph
 - [ ] Test and iterate on edge cases: rapid-fire messages, long silence then return, empty messages, very long messages
 
 ### Memory Improvements
+- [ ] `update_memory` tool: upsert memory row for visitor
+- [ ] Inject current memory into Harold's system prompt on every wake
 - [ ] Tune memory size limits and update frequency
 - [ ] Test memory across many conversations — does Harold build up useful context?
 

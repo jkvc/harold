@@ -83,9 +83,9 @@ This means Harold can be killed at any time — crash, timeout, bad behavior —
 
 ### Persistent Memory
 
-Harold maintains a free-form text memo about the user — things he's learned across conversations. "Prefers direct answers." "Works on a Next.js project." "Name is Alex."
+Harold will maintain a free-form text memo about the user — things he's learned across conversations. "Prefers direct answers." "Works on a Next.js project." "Name is Alex."
 
-This memo is stored as a single row in the `memory` table, keyed by visitor ID. It is injected into Harold's system prompt on every wake (not a tool — always present). Harold updates it via the `update_memory` tool when he learns something worth remembering.
+The `memory` table exists in Phase 2 so the schema is ready, but behavioral memory is part of Phase 4 Smarts. In that phase, the memo is stored as a single row keyed by visitor ID, injected into Harold's system prompt on every wake, and updated via the `update_memory` tool when Harold learns something worth remembering.
 
 Memory is visible only in the debug panel, not in the main chat UI.
 
@@ -264,7 +264,7 @@ Updates Harold's persistent notes about the user. The entire memo is replaced (n
 Parameters:
 - `content` (string, required) — the full updated memo.
 
-Harold sees his current memory in the system prompt, so he has full context when deciding what to write.
+In Phase 4, Harold will see his current memory in the system prompt, so he has full context when deciding what to write.
 
 ### web_search (Anthropic built-in)
 
