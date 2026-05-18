@@ -31,6 +31,8 @@ Use **Font Awesome 7** (`@fortawesome/fontawesome-free`) for all icons. Do **not
 ### 6. Style Guide
 All visual design decisions (palette, typography, border radii, button patterns, layout conventions) are documented in `STYLE.md` at the project root. Read and follow it when creating or modifying UI.
 
+Use the reusable Harold design tokens and component classes in `app/globals.css` for shared visual treatments. Prefer composing those classes with Tailwind layout utilities instead of repeating literal gradients, shadows, and colors in components.
+
 ### 7. Prose Line Wrapping
 Do **not** hard-wrap paragraphs in Markdown / MDX content. Write each paragraph, list item, and block-level element as a single unwrapped line. Editor word wrap is on — mid-paragraph line breaks make editing awkward and produce noisy diffs. Blank lines still separate blocks as usual.
 

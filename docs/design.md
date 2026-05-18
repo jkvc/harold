@@ -107,7 +107,9 @@ A future login system could map authenticated users to existing visitor IDs, pre
 
 ### Clear / Reset
 
-A button in the UI clears all data for the current visitor ID: messages, runs, and memory. Harold forgets you entirely. The visitor ID itself persists (same device, fresh start).
+Phase 1 exposes this as "New Chat": the UI generates a fresh visitor ID, writes it to localStorage and the cookie, and reloads or refetches an empty thread. Old rows remain in the database under the previous visitor ID.
+
+A future destructive Clear / Reset can keep the current visitor ID and delete all data for it: messages, runs, and memory. Harold forgets you entirely while the same device keeps the same identity.
 
 ## Data Model
 
@@ -116,6 +118,8 @@ A button in the UI clears all data for the current visitor ID: messages, runs, a
 - **Neon Postgres** — primary storage for messages, runs, and memory. Accessed via Drizzle ORM.
 - **Upstash Redis** — pub/sub channel for real-time SSE delivery. One channel per visitor.
 - **QStash** — async wake dispatch. Breaks Vercel's request chain tracking, avoids 508 infinite loop errors on bounce refresh, provides retries.
+
+Phase 1 creates only the `messages` table because Harold has no agent loop yet. `runs`, `memory`, and `harold_state` are introduced when Phase 2 adds waking and responses.
 
 ### Schema
 
@@ -349,7 +353,9 @@ The debug panel is the educational window into the non-turn-based primitives. It
 
 ### Clear / Reset
 
-Button in the debug panel or settings. Clears all messages, runs, and memory for the current visitor. Harold starts fresh with no history and no memory of you.
+Phase 1 uses a top-bar "New Chat" button instead: rotate the visitor ID and show an empty thread, leaving old rows orphaned in the database.
+
+Later, a debug panel or settings button can provide destructive Clear / Reset: delete all messages, runs, and memory for the current visitor so Harold starts fresh with no history and no memory of you.
 
 ## Model & System Prompt
 

@@ -1,0 +1,3 @@
+ALTER TABLE "messages" ADD CONSTRAINT "messages_reply_to_id_fk" FOREIGN KEY ("reply_to_id") REFERENCES "public"."messages"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "messages_visitor_created_at_id_idx" ON "messages" USING btree ("visitor_id","created_at","id");--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_role_check" CHECK ("messages"."role" in ('user', 'harold'));

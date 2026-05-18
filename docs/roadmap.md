@@ -7,13 +7,12 @@ Each phase ends with a verifiable milestone you can see and interact with. No ph
 **Milestone:** You can send messages, see them persist, refresh and they're still there. A "New Chat" button gives you a fresh visitor ID (old data stays in DB, just orphaned). No Harold responses yet — just your messages in an iMessage-style UI.
 
 ### Infrastructure
-- [ ] Install dependencies: `drizzle-orm`, `@neondatabase/serverless`, `@vercel/functions`
+- [ ] Install dependencies: `drizzle-orm`, `@neondatabase/serverless`
 - [ ] Environment variables (`.env.local`): `DATABASE_URL`
 - [ ] Drizzle config (`drizzle.config.ts`) pointing at Neon
-- [ ] DB schema (`app/lib/db/schema.ts`): messages, runs, memory, harold_state tables
+- [ ] DB schema (`app/lib/db/schema.ts`): messages table
 - [ ] Write and apply initial migration
 - [ ] DB client (`app/lib/db/index.ts`) using Neon serverless driver
-- [ ] Base URL helper (`app/lib/base-url.ts`)
 
 ### Visitor Identity
 - [ ] Visitor ID utility (`app/lib/visitor.ts`): generate random ID, read/write localStorage + cookie
@@ -30,7 +29,7 @@ Each phase ends with a verifiable milestone you can see and interact with. No ph
 - [ ] Auto-scroll to bottom on new messages
 - [ ] Mobile-first layout: full viewport on mobile, centered max-w-[430px] on desktop
 - [ ] Top bar: "Harold" title
-- [ ] "New Chat" button: generates fresh visitor ID in localStorage, reloads. No backend deletion.
+- [ ] "New Chat" button: generates fresh visitor ID in localStorage + cookie, reloads or refetches. No backend deletion.
 - [ ] On page load: fetch messages for current visitor ID, render in chat
 
 ## Phase 2: Harold Responds

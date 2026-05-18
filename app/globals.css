@@ -5,3 +5,141 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
+
+@layer base {
+  :root {
+    --harold-page-bg: #d6e0e8;
+    --harold-phone-bg: #dce8f1;
+    --harold-chat-bg: #dbe8f0;
+    --harold-chrome-top: #a9d0e9;
+    --harold-chrome-mid: #5f9cc5;
+    --harold-chrome-bottom: #236d9b;
+    --harold-status-top: #eff8ff;
+    --harold-status-mid: #b9d5e9;
+    --harold-status-bottom: #7ba7c4;
+    --harold-blue-top: #a7e6ff;
+    --harold-blue-mid: #69c8ef;
+    --harold-blue-bottom: #2fa4da;
+    --harold-blue-border: #2d8ec0;
+    --harold-button-top: #6aa9d3;
+    --harold-button-mid: #2f83b5;
+    --harold-button-bottom: #1d608a;
+    --harold-send-top: #66b4e7;
+    --harold-send-mid: #178ad0;
+    --harold-send-bottom: #0068ad;
+    --harold-input-border: #9fa6aa;
+    --harold-input-bar-border: #9ca9b3;
+    --harold-inset-highlight: inset 0 1px rgba(255, 255, 255, 0.65);
+    --harold-control-shadow: inset 0 1px rgba(255, 255, 255, 0.5), inset 0 -1px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.3);
+    --harold-bubble-shadow: 0 1px 2px rgba(0, 0, 0, 0.32), inset 0 1px rgba(255, 255, 255, 0.78);
+  }
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@layer components {
+  .harold-page {
+    background: var(--harold-page-bg);
+    color: #0f172a;
+  }
+
+  .harold-phone {
+    background: var(--harold-phone-bg);
+    border-left: 1px solid rgba(100, 116, 139, 0.3);
+    border-right: 1px solid rgba(100, 116, 139, 0.3);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+
+  .harold-status-bar {
+    background: linear-gradient(to bottom, var(--harold-status-top), var(--harold-status-mid), var(--harold-status-bottom));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 -1px rgba(65, 110, 140, 0.35);
+    color: #1e293b;
+  }
+
+  .harold-nav-bar {
+    background: linear-gradient(to bottom, var(--harold-chrome-top), var(--harold-chrome-mid), var(--harold-chrome-bottom));
+    border-bottom: 1px solid #315a78;
+    box-shadow: var(--harold-inset-highlight), inset 0 -1px rgba(0, 0, 0, 0.24), 0 1px 2px rgba(0, 0, 0, 0.32);
+  }
+
+  .harold-chat-surface {
+    background: var(--harold-chat-bg);
+  }
+
+  .harold-title-shadow {
+    filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.55));
+  }
+
+  .harold-status-text {
+    filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6));
+  }
+
+  .harold-battery-body {
+    background: linear-gradient(to bottom, #baff74, #61df42, #24aa28);
+    border: 1px solid #275f28;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.8);
+  }
+
+  .harold-battery-cap {
+    background: #275f28;
+  }
+
+  .harold-nav-button {
+    background: linear-gradient(to bottom, var(--harold-button-top), var(--harold-button-mid), var(--harold-button-bottom));
+    border: 1px solid #1b577d;
+    box-shadow: var(--harold-control-shadow);
+    color: white;
+  }
+
+  .harold-composer-bar {
+    background: linear-gradient(to bottom, #f8f8f8, #e3e6e9, #c7cbd0);
+    border-top: 1px solid var(--harold-input-bar-border);
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.9);
+  }
+
+  .harold-textbox {
+    background: linear-gradient(to bottom, #f9f9f9, white);
+    border: 1px solid var(--harold-input-border);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.24), 0 1px rgba(255, 255, 255, 0.82);
+  }
+
+  .harold-textbox:focus {
+    border-color: #4e92bd;
+  }
+
+  .harold-send-button {
+    background: linear-gradient(to bottom, var(--harold-send-top), var(--harold-send-mid), var(--harold-send-bottom));
+    border: 1px solid #1d6694;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.58), inset 0 -1px rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.25);
+    color: white;
+  }
+
+  .harold-send-button:disabled {
+    background: linear-gradient(to bottom, #cbd5e1, #cbd5e1, #94a3b8);
+    border-color: #94a3b8;
+    color: #f1f5f9;
+  }
+
+  .harold-bubble {
+    box-shadow: var(--harold-bubble-shadow);
+  }
+
+  .harold-bubble-user {
+    background: linear-gradient(to bottom, var(--harold-blue-top), var(--harold-blue-mid), var(--harold-blue-bottom));
+    border: 1px solid var(--harold-blue-border);
+    color: #123448;
+  }
+
+  .harold-bubble-harold {
+    background: linear-gradient(to bottom, white, #f5f5f5, #dcdcdc);
+    border: 1px solid #a4a4a4;
+    color: #0f172a;
+  }
+}
