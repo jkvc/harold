@@ -41,3 +41,6 @@ Known shortcuts and deferred work go in [`TECH_DEBT.md`](TECH_DEBT.md). **All te
 
 ### 9. Testing
 Tests live in `app/__tests__/`. Run with `pnpm test` (vitest). Pre-push hook runs type-check, lint, test, then build in sequence. Practice TDD for non-trivial logic.
+
+### 10. Integration Tests Are Expensive
+`pnpm test:integration` runs against a live app and makes real Claude API calls. Do **not** run integration tests unless the user explicitly asks for them. When adding or updating integration tests for Harold's wake loop, use the cheaper hardcoded `claude-haiku-4-5` model path.

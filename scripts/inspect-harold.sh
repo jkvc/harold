@@ -13,7 +13,8 @@ set -euo pipefail
 #   schema          Tables, columns, indexes, and constraints
 #   db              Database/time/row-count overview
 #   migrations      Applied Drizzle migrations
-#   future          Known future Harold tables if present
+#   events          Durable Harold event stream
+#   phase2          Known Phase 2 Harold tables if present
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -22,7 +23,7 @@ VISITOR_ID="${1:-}"
 CMD="${2:-all}"
 
 if [[ -z "$VISITOR_ID" || "$VISITOR_ID" == "-h" || "$VISITOR_ID" == "--help" ]]; then
-  echo "Usage: $0 <visitorId> [all|messages|visitor-tables|schema|db|migrations|future]"
+  echo "Usage: $0 <visitorId> [all|messages|visitor-tables|schema|db|migrations|events|phase2]"
   exit 1
 fi
 
@@ -44,7 +45,13 @@ import { neon } from "@neondatabase/serverless";
 const visitorId = process.argv[2];
 const command = process.argv[3] ?? "all";
 const sql = neon(process.env.DATABASE_URL);
-const knownFutureTables = ["runs", "memory", "harold_state"];
+const knownPhase2Tables = [
+  "runs",
+  "memory",
+  "harold_state",
+  "message_reactions",
+  "harold_events",
+];
 
 function section(title) {
   console.log();
@@ -201,11 +208,34 @@ async function showMigrations() {
   });
 }
 
-async function showFutureTables() {
-  section("Known Future Tables");
+async function showEvents() {
+  section("Harold Events");
+  const exists = await tableExists("harold_events");
+
+  if (!exists) {
+    console.log("harold_events table does not exist.");
+    return;
+  }
+
+  const rows = await sql`
+    SELECT *
+    FROM harold_events
+    WHERE visitor_id = ${visitorId}
+    ORDER BY id ASC
+    LIMIT 1000
+  `;
+
+  dump({
+    count: rows.length,
+    rows,
+  });
+}
+
+async function showPhase2Tables() {
+  section("Known Phase 2 Tables");
   const result = {};
 
-  for (const tableName of knownFutureTables) {
+  for (const tableName of knownPhase2Tables) {
     const exists = await tableExists(tableName);
     result[tableName] = { exists };
 
@@ -235,19 +265,22 @@ const commands = {
     await showMigrations();
     await showVisitorTables();
     await showMessages();
-    await showFutureTables();
+    await showEvents();
+    await showPhase2Tables();
   },
   messages: showMessages,
   "visitor-tables": showVisitorTables,
   schema: showSchema,
   db: showDbOverview,
   migrations: showMigrations,
-  future: showFutureTables,
+  events: showEvents,
+  phase2: showPhase2Tables,
+  future: showPhase2Tables,
 };
 
 if (!commands[command]) {
   console.error(`Unknown command: ${command}`);
-  console.error("Usage: inspect-harold.sh <visitorId> [all|messages|visitor-tables|schema|db|migrations|future]");
+  console.error("Usage: inspect-harold.sh <visitorId> [all|messages|visitor-tables|schema|db|migrations|events|phase2]");
   process.exit(1);
 }
 

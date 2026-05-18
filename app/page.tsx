@@ -13,9 +13,20 @@ import {
   useState,
 } from "react";
 import { HaroldShell } from "@/app/components/harold-shell";
+import { DebugTimeline } from "@/app/components/debug-timeline";
+import { useHaroldEvents } from "@/app/hooks/use-harold-events";
 import { useVisitor } from "@/app/hooks/use-visitor";
 import type { ApiResponse } from "@/app/lib/api-types";
-import type { MessageDto, MessagePageDto } from "@/app/lib/messages";
+import type {
+  DebugEventDto,
+  DebugEventPageDto,
+  HaroldSseEvent,
+} from "@/app/lib/harold/types";
+import type {
+  MessageDto,
+  MessagePageDto,
+  MessageReactionDto,
+} from "@/app/lib/messages";
 
 type ChatMessage = MessageDto & {
   status?: "pending" | "failed";
@@ -34,9 +45,15 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRefreshConfirmOpen, setIsRefreshConfirmOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
+  const [debugEvents, setDebugEvents] = useState<DebugEventDto[]>([]);
+  const [hasMoreDebugEvents, setHasMoreDebugEvents] = useState(false);
+  const [isHaroldTyping, setIsHaroldTyping] = useState(false);
+  const [isHaroldAwake, setIsHaroldAwake] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
+  const wakeTimeoutRef = useRef<number | null>(null);
   const pendingScrollRef = useRef<"bottom-instant" | "bottom-smooth" | null>(
     null,
   );
@@ -45,6 +62,11 @@ export default function Home() {
     previousScrollTop: number;
   } | null>(null);
   const isLoadingOlderRef = useRef(false);
+
+  useHaroldEvents({
+    enabled: isReady,
+    onEvent: handleHaroldEvent,
+  });
 
   const handleViewportChange = useCallback(() => {
     if (document.activeElement === draftRef.current) {
@@ -89,6 +111,27 @@ export default function Home() {
       isCancelled = true;
     };
   }, [isReady, visitorId]);
+
+  useEffect(() => {
+    return () => {
+      if (wakeTimeoutRef.current) {
+        window.clearTimeout(wakeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncDebugStateFromUrl() {
+      setIsDebugOpen(new URLSearchParams(window.location.search).get("debug") === "true");
+    }
+
+    syncDebugStateFromUrl();
+    window.addEventListener("popstate", syncDebugStateFromUrl);
+
+    return () => {
+      window.removeEventListener("popstate", syncDebugStateFromUrl);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -184,6 +227,7 @@ export default function Home() {
       content: trimmedDraft,
       replyToId: null,
       createdAt: new Date().toISOString(),
+      reactions: [],
       status: "pending",
     };
 
@@ -208,10 +252,13 @@ export default function Home() {
       }
 
       setMessages((currentMessages) =>
-        currentMessages.map((message) =>
-          message.id === optimisticId ? payload.data : message,
+        dedupeMessages(
+          currentMessages.map((message) =>
+            message.id === optimisticId ? payload.data : message,
+          ),
         ),
       );
+      scheduleWake();
     } catch (sendError) {
       setError(getErrorMessage(sendError, "Could not send message."));
       setMessages((currentMessages) =>
@@ -274,6 +321,16 @@ export default function Home() {
     window.setTimeout(() => setToastMessage(null), 1800);
   }
 
+  function openDebugTimeline() {
+    setIsDebugOpen(true);
+    updateDebugUrl(true);
+  }
+
+  function closeDebugTimeline() {
+    setIsDebugOpen(false);
+    updateDebugUrl(false);
+  }
+
   async function handleMessageScroll(event: UIEvent<HTMLElement>) {
     const scrollContainer = event.currentTarget;
 
@@ -311,9 +368,84 @@ export default function Home() {
     }
   }
 
+  function handleHaroldEvent(event: HaroldSseEvent) {
+    setDebugEvents((currentEvents) =>
+      dedupeDebugEvents([...currentEvents, sseToDebugEvent(event)]),
+    );
+
+    if (event.type === "message") {
+      pendingScrollRef.current = "bottom-smooth";
+      setMessages((currentMessages) =>
+        dedupeMessages(upsertMessage(currentMessages, event.message)),
+      );
+      return;
+    }
+
+    if (event.type === "reaction") {
+      setMessages((currentMessages) =>
+        currentMessages.map((message) =>
+          message.id === event.reaction.messageId
+            ? {
+                ...message,
+                reactions: dedupeReactions([
+                  ...message.reactions,
+                  event.reaction,
+                ]),
+              }
+            : message,
+        ),
+      );
+      return;
+    }
+
+    if (event.type === "run_start") {
+      setIsHaroldAwake(true);
+      setIsHaroldTyping(true);
+      return;
+    }
+
+    if (event.type === "run_end" || event.type === "error") {
+      setIsHaroldAwake(false);
+      setIsHaroldTyping(false);
+      if (event.type === "error") {
+        showToast("Harold hit a snag. Try waking him again.");
+      }
+    }
+  }
+
+  function scheduleWake() {
+    if (wakeTimeoutRef.current) {
+      window.clearTimeout(wakeTimeoutRef.current);
+    }
+
+    wakeTimeoutRef.current = window.setTimeout(() => {
+      void fetch("/api/wake", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger: "message" }),
+      });
+    }, 3000);
+  }
+
+  const handleDebugInitialLoad = useCallback((page: DebugEventPageDto) => {
+    setDebugEvents(dedupeDebugEvents(page.events));
+    setHasMoreDebugEvents(page.hasMore);
+    setIsHaroldAwake(getIsHaroldAwakeFromEvents(page.events));
+  }, []);
+
+  const handleDebugOlderLoad = useCallback((page: DebugEventPageDto) => {
+    setDebugEvents((currentEvents) =>
+      dedupeDebugEvents([...page.events, ...currentEvents]),
+    );
+    setHasMoreDebugEvents(page.hasMore);
+  }, []);
+
   return (
-    <HaroldShell
+    <>
+      <HaroldShell
       title="Harold"
+      isCompanionOpen={isDebugOpen}
       onViewportChange={handleViewportChange}
       trailing={
         <div ref={menuRef} className="relative">
@@ -352,6 +484,17 @@ export default function Home() {
               >
                 Copy Visitor ID
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  openDebugTimeline();
+                }}
+                className="harold-menu-item"
+                role="menuitem"
+              >
+                Debug Timeline
+              </button>
               <Link
                 href="/about"
                 className="harold-menu-item block"
@@ -378,8 +521,6 @@ export default function Home() {
         ) : messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-center text-sm font-semibold leading-6 text-slate-500">
             Send the first message.
-            <br />
-            Harold will learn to answer in Phase 2.
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -394,8 +535,19 @@ export default function Home() {
               </div>
             ) : null}
             {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                replyTo={findReplyTarget(messages, message.replyToId)}
+              />
             ))}
+            {isHaroldTyping ? (
+              <div className="flex justify-start">
+                <div className="harold-bubble harold-bubble-harold rounded-[18px] px-4 py-2 text-[13px] font-semibold text-slate-500">
+                  Harold is typing...
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </section>
@@ -469,7 +621,17 @@ export default function Home() {
           </div>
         </div>
       ) : null}
-    </HaroldShell>
+      </HaroldShell>
+      <DebugTimeline
+        isOpen={isDebugOpen}
+        events={debugEvents}
+        hasMore={hasMoreDebugEvents}
+        isAwake={isHaroldAwake}
+        onClose={closeDebugTimeline}
+        onLoadInitial={handleDebugInitialLoad}
+        onLoadOlder={handleDebugOlderLoad}
+      />
+    </>
   );
 }
 
@@ -487,7 +649,111 @@ function scrollMessagesToBottom(behavior: ScrollBehavior) {
   });
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function updateDebugUrl(isOpen: boolean) {
+  const url = new URL(window.location.href);
+
+  if (isOpen) {
+    url.searchParams.set("debug", "true");
+  } else {
+    url.searchParams.delete("debug");
+  }
+
+  window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function upsertMessage(messages: ChatMessage[], nextMessage: MessageDto) {
+  const existingIndex = messages.findIndex((message) => message.id === nextMessage.id);
+
+  if (existingIndex === -1) {
+    return [...messages, nextMessage];
+  }
+
+  return messages.map((message, index) =>
+    index === existingIndex ? { ...message, ...nextMessage } : message,
+  );
+}
+
+function dedupeMessages(messages: ChatMessage[]) {
+  const seen = new Set<string>();
+  const deduped: ChatMessage[] = [];
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (seen.has(message.id)) {
+      continue;
+    }
+    seen.add(message.id);
+    deduped.unshift(message);
+  }
+
+  return deduped;
+}
+
+function dedupeReactions(reactions: MessageReactionDto[]) {
+  const seen = new Set<string>();
+  return reactions.filter((reaction) => {
+    const key = `${reaction.messageId}:${reaction.actor}:${reaction.emoji}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function findReplyTarget(messages: ChatMessage[], replyToId: string | null) {
+  if (!replyToId) {
+    return undefined;
+  }
+
+  return messages.find((message) => message.id === replyToId);
+}
+
+function sseToDebugEvent(event: HaroldSseEvent): DebugEventDto {
+  const { eventId, visitorId, createdAt, ...payload } = event;
+  return {
+    id: eventId,
+    visitorId,
+    eventType: payload.type,
+    payload,
+    runId: "runId" in payload ? (payload.runId ?? null) : null,
+    messageId:
+      payload.type === "message"
+        ? payload.message.id
+        : payload.type === "reaction"
+          ? payload.reaction.messageId
+          : null,
+    createdAt,
+  };
+}
+
+function dedupeDebugEvents(events: DebugEventDto[]) {
+  const byId = new Map<number, DebugEventDto>();
+  for (const event of events) {
+    byId.set(event.id, event);
+  }
+
+  return [...byId.values()].sort((left, right) => left.id - right.id);
+}
+
+function getIsHaroldAwakeFromEvents(events: DebugEventDto[]) {
+  const latestRunEvent = [...events]
+    .reverse()
+    .find(
+      (event) =>
+        event.payload.type === "run_start" || event.payload.type === "run_end",
+    );
+
+  return latestRunEvent?.payload.type === "run_start";
+}
+
+function MessageBubble({
+  message,
+  replyTo,
+}: {
+  message: ChatMessage;
+  replyTo?: ChatMessage;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -497,7 +763,30 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           isUser ? "harold-bubble-user" : "harold-bubble-harold"
         } ${message.status === "failed" ? "opacity-60" : ""}`}
       >
+        {replyTo ? (
+          <div
+            className={`harold-reply-preview mb-2 rounded-[12px] px-2.5 py-2 text-[12px] font-semibold leading-4 ${
+              isUser
+                ? "harold-reply-preview-user text-[#123448]/80"
+                : "harold-reply-preview-harold text-slate-600"
+            }`}
+          >
+            <span className="line-clamp-2 break-words">{replyTo.content}</span>
+          </div>
+        ) : null}
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        {message.reactions.length > 0 ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {message.reactions.map((reaction) => (
+              <span
+                key={reaction.id}
+                className="rounded-full bg-white/55 px-2 py-0.5 text-xs font-bold"
+              >
+                {reaction.emoji}
+              </span>
+            ))}
+          </div>
+        ) : null}
         {message.status ? (
           <p
             className={`mt-1 text-right text-[11px] font-semibold ${

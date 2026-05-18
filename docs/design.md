@@ -42,8 +42,8 @@ The architecture is a simplified extraction of the [Not Really](https://notreall
                                                │   2. Claude thinks   │
                                                │   3. Use tools       │
                                                │   4. send_message(s) │
-                                               │   5. Final inbox     │
-                                               │   6. Sleep or bounce │
+│   5. Final inbox     │
+│   6. Sleep / continue│
                                                └──────────────────────┘
 ```
 
@@ -54,18 +54,18 @@ The architecture is a simplified extraction of the [Not Really](https://notreall
 3. Client resets a 3-second debounce timer. If the user sends another message within 3 seconds, the timer resets. This lets Harold see batched messages, like reading multiple unread texts at once.
 4. When the debounce fires, client POSTs to `/api/wake`. This endpoint dispatches a wake to Harold via QStash.
 5. QStash delivers the wake to `/api/wake/run` — a Vercel serverless function that runs Harold's agent loop via `waitUntil()`.
-6. The agent loop runs: reads inbox, calls Claude, executes tools, sends messages. Each `send_message` call publishes an SSE event via Redis pub/sub.
-7. The client's SSE listener receives events and renders Harold's messages as they arrive.
+6. The agent loop runs: reads inbox, calls Claude with web search available, executes tools, sends messages, and records compact debug events. Each replayable event is persisted to `harold_events` first, then published over Redis pub/sub.
+7. The client's SSE listener receives events and renders Harold's messages, reactions, typing state, and debug timeline updates as they arrive.
 
 ## Core Primitives
 
 ### Watermark-Based Inbox
 
-Harold tracks a timestamp — "the last time I looked." When he wakes, `check_inbox` queries all messages sent since that watermark. Whether one message or five arrived while he was asleep, he sees them all at once as a batch.
+Harold tracks a composite watermark: the last processed message timestamp plus message ID. When he wakes, `check_inbox` queries all user messages after that pair in the same order as message pagination. Whether one message or five arrived while he was asleep, he sees them all at once as a batch.
 
 This is the fundamental mechanism that makes the system non-turn-based. The user never waits for Harold to finish before sending more messages. Messages accumulate in the database, and Harold reads them in bulk on his next wake.
 
-After processing, the watermark advances to "now."
+After a wake completes successfully, the watermark advances to the newest message actually included, avoiding gaps when messages share a timestamp. Runtime failures publish a transient error event rather than a normal Harold message; the durable watermark is not advanced for failed work, so the next wake can retry unprocessed inbox messages.
 
 ### Meaning-Free Wake Signal
 
@@ -91,6 +91,8 @@ Memory is visible only in the debug panel, not in the main chat UI.
 
 ### Bounce Refresh (Session Continuation)
 
+Bounce refresh is planned for the Robustness & Polish phase, not required for the Phase 2 round trip.
+
 Vercel serverless functions have a 300-second timeout (with Fluid Compute). Harold's agent loop runs within that boundary, exiting at ~270s to leave cleanup buffer.
 
 If Harold has unprocessed events but less than ~90 seconds remaining, he performs a bounce refresh: persists his current run, releases his status back to "sleeping," and dispatches a continuation wake to himself via QStash. The new function picks up seamlessly with full history from the database.
@@ -115,11 +117,11 @@ A future destructive Clear / Reset can keep the current visitor ID and delete al
 
 ### Storage
 
-- **Neon Postgres** — primary storage for messages, runs, and memory. Accessed via Drizzle ORM.
-- **Upstash Redis** — pub/sub channel for real-time SSE delivery. One channel per visitor.
+- **Neon Postgres** — primary storage for messages, runs, memory, reactions, state, and durable events. Accessed via Drizzle ORM.
+- **Redis via `ioredis`** — pub/sub channel for real-time SSE delivery. One channel per visitor, using a TCP `REDIS_URL`.
 - **QStash** — async wake dispatch. Breaks Vercel's request chain tracking, avoids 508 infinite loop errors on bounce refresh, provides retries.
 
-Phase 1 creates only the `messages` table because Harold has no agent loop yet. `runs`, `memory`, and `harold_state` are introduced when Phase 2 adds waking and responses.
+Phase 1 created only the `messages` table because Harold had no agent loop yet. Phase 2 adds `runs`, `memory`, `harold_state`, `message_reactions`, and `harold_events`.
 
 ### Schema
 
@@ -137,6 +139,9 @@ runs
   visitor_id    text, indexed
   turn_messages jsonb (the LLM conversation for this wake)
   status        text ("running" | "completed" | "failed")
+  model         text
+  bounce_count  integer
+  error         text
   created_at    timestamp
   completed_at  timestamp, nullable
 
@@ -150,13 +155,32 @@ harold_state
   visitor_id          text, primary key
   status              text ("sleeping" | "working")
   active_run_id       text, nullable
-  last_processed_at   timestamp, nullable (the inbox watermark)
+  last_processed_at   timestamp, nullable (part of inbox watermark)
+  last_processed_message_id text, nullable (part of inbox watermark)
+  pending_wake_requested_at timestamp, nullable
   updated_at          timestamp
+
+message_reactions
+  id            text, primary key
+  visitor_id    text, indexed
+  message_id    text, references messages.id
+  actor         text ("harold" | "user")
+  emoji         text
+  created_at    timestamp
+
+harold_events
+  id            serial, primary key
+  visitor_id    text, indexed
+  event_type    text
+  payload       jsonb
+  run_id        text, nullable
+  message_id    text, nullable
+  created_at    timestamp
 ```
 
-`visitor_id` is the partition key for everything. One visitor = one conversation = one Harold instance.
+`visitor_id` is the partition key for everything. One visitor = one conversation = one Harold instance. SSE and debug APIs derive identity from the visitor cookie only, not from query parameters.
 
-`harold_state` tracks whether Harold is currently working (prevents duplicate wakes) and his inbox watermark. Analogous to Not Really's `agentInstances` table but for a single agent per visitor.
+`harold_state` tracks whether Harold is currently working, his active run, pending wake timestamp, and inbox watermark. This is analogous to Not Really's instance lock but reduced to a single agent per visitor.
 
 ## Agent Loop
 
@@ -166,7 +190,7 @@ The agent loop is a simplified extraction of Not Really's `loop.ts`. Key differe
 - **No multi-agent coordination.** No `send_message` between agents, no specialist delegation, no pending run queuing.
 - **No hatsets, skills, or team sections.** One system prompt, one agent.
 - **Simplified tool set.** Four tools (plus Anthropic's built-in web search).
-- **Bounce refresh preserved.** Same `decideSleepAction` logic, simplified dispatch.
+- **Bounce refresh deferred.** Phase 2 keeps the run lock and pending-wake drain; timeout-aware continuation moves to Robustness & Polish.
 
 ### Loop Pseudocode
 
@@ -183,21 +207,22 @@ function runHaroldLoop(visitorId, runId):
     if tool_use:
       execute tools (send_message, update_memory, react_to)
       push tool results to messages
+      inject pending inbox only if it has messages
       continue
 
     if end_turn:
-      run final check_inbox
-      decideSleepAction → continue / bounce / sleep
-      break if sleep or bounce
+      run and record final check_inbox
+      decideSleepAction → continue / sleep
+      break if sleep
 
+  advance durable inbox watermark if the wake succeeded
   persist turnMessages to runs table
   set harold_state.status = "sleeping"
-  if bounce: dispatch self-wake via QStash
 ```
 
 ### Pre-Executed Inbox
 
-Like Not Really, `check_inbox` is pre-executed before the first Claude call. The result is injected as a synthetic assistant `tool_use` + user `tool_result` pair. This saves one full API round-trip (~2-3s) per wake.
+Like Not Really, `check_inbox` is pre-executed before the first Claude call and injected as a synthetic assistant `tool_use` + user `tool_result` pair. After tool-use turns, pending inbox checks are only logged and injected when they return messages, so stale wake signals do not create empty debug events or extra model turns. Before sleep, the final `check_inbox` result is always recorded in run history; if it has messages, Harold keeps going instead of sleeping.
 
 ### Stale Recovery
 
@@ -207,9 +232,9 @@ If a Vercel function crashes and Harold's status stays "working," a simple stale
 
 ### check_inbox
 
-Reads all messages from the `messages` table where `created_at > harold_state.last_processed_at` and `role = 'user'`. Returns them as a structured array. Advances the watermark after reading.
+Reads all messages from the `messages` table after the composite durable watermark and `role = 'user'`. Returns them as a structured array. The run records the newest seen inbox message immediately, but advances the durable watermark only after the wake completes successfully.
 
-Pre-executed by the engine on every wake. Harold rarely needs to call this manually.
+The tool remains visible to Harold, but the engine auto-runs and injects it at the important lifecycle points. Harold usually should not call it manually.
 
 ### send_message
 
@@ -257,8 +282,10 @@ Server-Sent Events stream Harold's activity to the client via Redis pub/sub.
 type HaroldSSEEvent =
   | { type: "message"; message: Message }          // Harold sent a message
   | { type: "reaction"; messageId: string; emoji: string }  // Harold reacted
-  | { type: "typing"; active: boolean }            // Typing indicator
-  | { type: "status"; status: "working" | "sleeping" }      // Harold's state
+  | { type: "run_start"; runId: string; model: string }      // Harold woke up
+  | { type: "run_end"; runId: string; status: string }       // Harold slept/failed
+  | { type: "tool_start"; name: string }           // Harold started a tool
+  | { type: "tool_complete"; name: string }        // Harold finished a tool
   | { type: "memory_updated" }                     // Memory changed (debug panel)
   | { type: "error"; message: string }             // Something went wrong
 ```
@@ -269,7 +296,7 @@ One Redis pub/sub channel per visitor: `harold:{visitorId}:events`.
 
 ### SSE Endpoint
 
-`GET /api/events?visitorId=xxx` — long-lived SSE connection. Subscribes to the visitor's Redis channel and forwards events to the client. Uses `maxDuration = 300` for Fluid Compute.
+`GET /api/events` — long-lived cookie-scoped SSE connection. Subscribes to the visitor's Redis channel, replays missed durable events after a cursor, emits native SSE `id:` fields for reconnects, and uses `maxDuration = 300` for Fluid Compute.
 
 ### No Token Streaming
 
@@ -291,7 +318,7 @@ This batches rapid-fire messages so Harold sees them all at once, like reading m
 
 ### Server-Side Wake Dispatch
 
-`POST /api/wake` receives the visitor ID, checks if Harold is already working (skip if so), and dispatches to QStash:
+`POST /api/wake` receives the visitor ID from the cookie and dispatches a meaning-free wake to QStash. Public callers cannot choose the model.
 
 - **Production (Vercel):** QStash publishes to `/api/wake/run` with retry. This breaks Vercel's request chain tracking and enables bounce refresh.
 - **Local dev:** Direct fetch to `/api/wake/run` (QStash can't reach localhost).
@@ -337,7 +364,7 @@ Mobile-first, full-screen iMessage clone.
 
 ### Typing Indicator
 
-"Harold is typing..." appears when `harold_state.status` transitions to "working" (SSE `status` event). Disappears when Harold goes back to "sleeping" or sends his first message.
+"Harold is typing..." appears while Harold is awake, derived from `run_start` and cleared by `run_end` or `error`. Typing/status are UI state, not durable debug events.
 
 Rendered as a standard iMessage typing indicator (three animated dots) in Harold's message position.
 

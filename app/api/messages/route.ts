@@ -1,8 +1,8 @@
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import { errorResponse, successResponse } from "@/app/lib/api-response";
 import { getDb } from "@/app/lib/db";
-import { messages } from "@/app/lib/db/schema";
-import { serializeMessage } from "@/app/lib/messages";
+import { messageReactions, messages } from "@/app/lib/db/schema";
+import { serializeMessagesWithReactions } from "@/app/lib/messages";
 import { getVisitorIdFromCookie } from "@/app/lib/visitor-server";
 
 export const runtime = "nodejs";
@@ -55,9 +55,24 @@ export async function GET(request: Request) {
 
     const hasMore = rows.length > limit;
     const pageMessages = rows.slice(0, limit).reverse();
+    const reactions =
+      pageMessages.length > 0
+        ? await getDb()
+            .select()
+            .from(messageReactions)
+            .where(
+              and(
+                eq(messageReactions.visitorId, visitorId),
+                inArray(
+                  messageReactions.messageId,
+                  pageMessages.map((message) => message.id),
+                ),
+              ),
+            )
+        : [];
 
     return successResponse({
-      messages: pageMessages.map(serializeMessage),
+      messages: serializeMessagesWithReactions(pageMessages, reactions),
       hasMore,
     });
   } catch (error) {

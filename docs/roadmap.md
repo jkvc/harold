@@ -34,14 +34,14 @@ Each phase ends with a verifiable milestone you can see and interact with. No ph
 
 ## Phase 2: Harold Responds
 
-**Milestone:** You send a message, Harold wakes up, reads your messages, and responds. Full round-trip works: message → debounce → wake → agent loop → SSE → message appears. You can have a basic conversation. Harold uses `send_message` (one at a time), `check_inbox`, and `update_memory`.
+**Milestone:** You send a message, Harold wakes up, reads your messages, and responds. Full round-trip works: message → debounce → wake → agent loop → durable events + SSE → message appears. You can have a basic conversation, see reactions, and open a live debug timeline.
 
 ### Real-Time Delivery (SSE + Redis)
-- [ ] Install dependencies: `@upstash/redis`
-- [ ] Environment variable: `REDIS_URL`
-- [ ] Redis client (`app/lib/redis.ts`) using Upstash
-- [ ] Event bus (`app/lib/event-bus.ts`): `publishEvent(visitorId, event)` → Redis publish
-- [ ] SSE endpoint (`GET /api/events`): subscribe to Redis channel, stream events to client, `maxDuration = 300`
+- [ ] Install dependencies: `ioredis`
+- [ ] Environment variable: `REDIS_URL` as a TCP Redis URL
+- [ ] Durable event table (`harold_events`) for history and replay
+- [ ] Event bus (`app/lib/event-bus.ts`): persist event first, then publish to Redis
+- [ ] SSE endpoint (`GET /api/events`): cookie-only identity, missed-event replay, heartbeat, `maxDuration = 300`
 - [ ] Client-side SSE hook (`app/hooks/use-harold-events.ts`): EventSource connection, reconnect on drop, merge events into message state
 
 ### Wake System
@@ -55,21 +55,28 @@ Each phase ends with a verifiable milestone you can see and interact with. No ph
 
 ### Agent Loop
 - [ ] Harold's system prompt (`app/lib/harold/system-prompt.ts`) — initial version, personality + inbox model + tool instructions
-- [ ] `check_inbox` tool: query messages since `last_processed_at`, advance watermark
+- [ ] `check_inbox` tool: query messages since the durable watermark, track the newest seen message, and advance the durable watermark only after the wake completes successfully; engine injects results at wake start, after tool-use turns, and before sleep
 - [ ] `send_message` tool: insert message with `role=harold`, publish SSE event
 - [ ] `react_to` tool: store reaction on message, publish SSE event
 - [ ] `update_memory` tool: upsert memory row for visitor
-- [ ] Agent loop (`app/lib/harold/loop.ts`): pre-execute check_inbox, while loop with 270s time guard, Claude API call, tool execution, final inbox check, `decideSleepAction`
-- [ ] Context reconstruction (`app/lib/harold/reconstruct.ts`): load recent runs, token budget (~30K), compact chatty tool results, sanitize message alternation
+- [ ] Agent loop (`app/lib/harold/loop.ts`): Claude API call, tool execution, engine-managed inbox injection, pending-wake drain, final inbox check before sleep, transient failure event, `decideSleepAction`
+- [ ] Context reconstruction (`app/lib/harold/reconstruct.ts`): load recent runs, compact server web-search blocks, sanitize message alternation
 - [ ] `decideSleepAction` pure function
-- [ ] Stale recovery: detect stuck "working" for >90s, force-reset
-- [ ] Bounce refresh: self-dispatch via QStash on timeout with events pending
+- [ ] Stale recovery: acquire a stale "working" lock after a timeout
+- [ ] Pending wake flag: if Harold is already working, store a pending wake timestamp and drain it before sleeping
+- [ ] Anthropic web search enabled in the runtime
 
 ### Chat UI Additions
-- [ ] Typing indicator: animated dots when Harold is "working" (via SSE status event)
+- [ ] Typing indicator: animated dots while Harold is awake, derived from `run_start`/`run_end`
 - [ ] Harold's messages rendered from SSE events (not just page load fetch)
 - [ ] Reply bubble rendering (if `reply_to_id` is set)
 - [ ] Reaction badge rendering (emoji on message bubble)
+
+### Debug Timeline
+- [ ] `GET /api/debug` returns paged durable events for the cookie visitor
+- [ ] More menu opens a timeline-only debug view
+- [ ] Desktop shows a second phone-width panel beside chat; mobile slides the debug screen over chat
+- [ ] Timeline rows live-update from SSE and can expand for raw payload details
 
 ## Phase 3: Debug Panel
 
@@ -103,11 +110,12 @@ Each phase ends with a verifiable milestone you can see and interact with. No ph
 - [ ] Tune memory size limits and update frequency
 - [ ] Test memory across many conversations — does Harold build up useful context?
 
-## Phase 5: Polish
+## Phase 5: Robustness & Polish
 
-**Milestone:** Harold feels finished. The UI is tight, edge cases are handled, and the demo is presentable.
+**Milestone:** Harold feels finished and robust. The UI is tight, edge cases are handled, long-running wakes survive serverless limits, and the demo is presentable.
 
-- [ ] Error handling: graceful failure when Claude API errors (retry or system message)
+- [ ] Bounce refresh: persist and redispatch continuation wakes before serverless timeout
+- [ ] Error handling: graceful failure when Claude API errors (retry or transient UI notice)
 - [ ] Rate limiting on message and wake endpoints
 - [ ] Loading states: initial message fetch spinner, SSE reconnecting indicator
 - [ ] Timestamp grouping in chat (time dividers between message clusters)

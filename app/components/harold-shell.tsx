@@ -9,6 +9,7 @@ type HaroldShellProps = {
   trailing?: ReactNode;
   children: ReactNode;
   onViewportChange?: () => void;
+  isCompanionOpen?: boolean;
 };
 
 export function HaroldShell({
@@ -17,6 +18,7 @@ export function HaroldShell({
   trailing,
   children,
   onViewportChange,
+  isCompanionOpen = false,
 }: HaroldShellProps) {
   const [currentTime, setCurrentTime] = useState("");
 
@@ -72,7 +74,11 @@ export function HaroldShell({
 
   return (
     <main className="harold-page fixed inset-x-0 top-[var(--harold-viewport-offset-top,0px)] h-[var(--harold-viewport-height,100dvh)] overflow-hidden">
-      <div className="harold-phone relative mx-auto flex h-full max-w-[430px] flex-col overflow-hidden">
+      <div
+        className={`harold-phone relative mx-auto flex h-full max-w-[430px] flex-col overflow-hidden transition-transform duration-200 ${
+          isCompanionOpen ? "md:-translate-x-[221px]" : ""
+        }`}
+      >
         <div className="harold-status-bar relative h-5 px-2 text-[11px] font-bold leading-none">
           <span className="harold-status-text absolute left-2 top-1/2 flex -translate-y-1/2 items-end gap-[2px]">
             <i className="fa-solid fa-signal text-[11px]" aria-hidden="true" />

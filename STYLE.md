@@ -46,6 +46,7 @@ Shared visual treatments live in `app/globals.css`. Prefer composing these class
 | `.harold-toast` | Small temporary feedback message |
 | `.harold-chat-surface` | Transcript background |
 | `.harold-app-screen`, `.harold-app-screen-exit`, `.harold-about-surface`, `.harold-about-card` | Secondary app screens, transitions, and cards |
+| `.harold-debug-shell`, `.harold-debug-row` | Debug timeline overlay/panel and expandable event rows |
 | `.harold-composer-bar` | Bottom input bar |
 | `.harold-textbox` | Pill multiline message input |
 | `.harold-send-button` | Blue pill send button |

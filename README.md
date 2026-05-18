@@ -12,13 +12,20 @@ TBD.
 
 ## Environment
 
-Create `.env.local` with a Neon Postgres connection string:
+Create `.env.local` with a Neon Postgres connection string and the Phase 2 runtime services:
 
 ```bash
 DATABASE_URL="postgresql://..."
+REDIS_URL="redis://..."
+CLAUDE_API_KEY="..."
+QSTASH_TOKEN="..."
+QSTASH_CURRENT_SIGNING_KEY="..."
+QSTASH_NEXT_SIGNING_KEY="..."
+VERCEL_AUTOMATION_BYPASS_SECRET="..."
+SITE_URL="http://localhost:3000"
 ```
 
-The app uses the Neon serverless HTTP driver from route handlers running on the Node.js runtime. Local development and builds can run without applying migrations, but message APIs need `DATABASE_URL` at request time.
+The app uses the Neon serverless HTTP driver from route handlers running on the Node.js runtime. `REDIS_URL` must be a TCP Redis URL for `ioredis`, not an Upstash REST URL. `SITE_URL` is optional locally; when absent the app self-calls `http://localhost:3000`, and on Vercel it falls back to `VERCEL_URL`.
 
 ## Getting Started
 
@@ -54,7 +61,7 @@ Generate migrations from the Drizzle schema:
 pnpm exec drizzle-kit generate
 ```
 
-Apply migrations when `DATABASE_URL` is configured:
+Apply migrations when `DATABASE_URL` is configured. Agents must ask before applying new migrations locally.
 
 ```bash
 set -a; [ -f .env.local ] && . ./.env.local; set +a; pnpm exec drizzle-kit migrate
@@ -73,6 +80,7 @@ CHECK_BUILD=1 pnpm run build
 pnpm run type-check   # TypeScript
 pnpm run lint          # ESLint
 pnpm test              # Vitest
+pnpm test:integration  # Expensive live Claude smoke test; run only when explicitly requested
 ```
 
 Pre-push hook runs all three in parallel, then build sequentially.
@@ -82,10 +90,10 @@ Pre-push hook runs all three in parallel, then build sequentially.
 Dump database state for a visitor:
 
 ```bash
-./scripts/inspect-harold.sh <visitorId> [all|messages|visitor-tables|schema|db|migrations|future]
+./scripts/inspect-harold.sh <visitorId> [all|messages|visitor-tables|schema|db|migrations|events|phase2]
 ```
 
-The default `all` command prints database metadata, schema, applied migrations, every visitor-scoped table, current messages, and known future Harold tables when they exist.
+The default `all` command prints database metadata, schema, applied migrations, every visitor-scoped table, current messages, durable Harold events, and Phase 2 tables when they exist.
 
 ## Conventions
 

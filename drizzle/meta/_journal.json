@@ -15,6 +15,13 @@
       "when": 1779064794684,
       "tag": "0001_fair_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779069600000,
+      "tag": "0002_phase_2_harold",
+      "breakpoints": true
     }
   ]
 }

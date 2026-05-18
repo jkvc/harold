@@ -3,6 +3,7 @@ import { getDb } from "@/app/lib/db";
 import { errorResponse, successResponse } from "@/app/lib/api-response";
 import { serializeMessage } from "@/app/lib/messages";
 import { getVisitorIdFromCookie } from "@/app/lib/visitor-server";
+import { publishEvent } from "@/app/lib/event-bus";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,14 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    return successResponse(serializeMessage(message));
+    const serialized = serializeMessage(message);
+    await publishEvent(visitorId, { type: "message", message: serialized }).catch(
+      (eventError) => {
+        console.error("Failed to publish user message event", eventError);
+      },
+    );
+
+    return successResponse(serialized);
   } catch (error) {
     console.error("Failed to store message", error);
     return errorResponse(503, "Message storage is unavailable.", "DB_UNAVAILABLE");
