@@ -1,15 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import {
   FormEvent,
   KeyboardEvent,
   UIEvent,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { HaroldShell } from "@/app/components/harold-shell";
 import { useVisitor } from "@/app/hooks/use-visitor";
 import type { ApiResponse } from "@/app/lib/api-types";
 import type { MessageDto, MessagePageDto } from "@/app/lib/messages";
@@ -28,7 +31,10 @@ export default function Home() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState("");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isRefreshConfirmOpen, setIsRefreshConfirmOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingScrollRef = useRef<"bottom-instant" | "bottom-smooth" | null>(
@@ -40,57 +46,10 @@ export default function Home() {
   } | null>(null);
   const isLoadingOlderRef = useRef(false);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    const previousBodyOverflow = document.body.style.overflow;
-
-    function updateViewportSize() {
-      const viewport = window.visualViewport;
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const viewportOffsetTop = viewport?.offsetTop ?? 0;
-
-      root.style.setProperty("--harold-viewport-height", `${viewportHeight}px`);
-      root.style.setProperty(
-        "--harold-viewport-offset-top",
-        `${viewportOffsetTop}px`,
-      );
-
-      if (document.activeElement === draftRef.current) {
-        scrollMessagesToBottom("auto");
-      }
+  const handleViewportChange = useCallback(() => {
+    if (document.activeElement === draftRef.current) {
+      scrollMessagesToBottom("auto");
     }
-
-    document.body.style.overflow = "hidden";
-    updateViewportSize();
-
-    window.visualViewport?.addEventListener("resize", updateViewportSize);
-    window.visualViewport?.addEventListener("scroll", updateViewportSize);
-    window.addEventListener("resize", updateViewportSize);
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      root.style.removeProperty("--harold-viewport-height");
-      root.style.removeProperty("--harold-viewport-offset-top");
-      window.visualViewport?.removeEventListener("resize", updateViewportSize);
-      window.visualViewport?.removeEventListener("scroll", updateViewportSize);
-      window.removeEventListener("resize", updateViewportSize);
-    };
-  }, []);
-
-  useEffect(() => {
-    function updateClock() {
-      setCurrentTime(
-        new Intl.DateTimeFormat(undefined, {
-          hour: "numeric",
-          minute: "2-digit",
-        }).format(new Date()),
-      );
-    }
-
-    updateClock();
-    const intervalId = window.setInterval(updateClock, 30_000);
-
-    return () => window.clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -130,6 +89,37 @@ export default function Home() {
       isCancelled = true;
     };
   }, [isReady, visitorId]);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    function handleDocumentPointerDown(event: PointerEvent) {
+      const menuElement = menuRef.current;
+      const target = event.target;
+
+      if (menuElement && target instanceof Node && menuElement.contains(target)) {
+        return;
+      }
+
+      setIsMenuOpen(false);
+    }
+
+    function handleDocumentKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    document.addEventListener("keydown", handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [isMenuOpen]);
 
   useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -249,17 +239,39 @@ export default function Home() {
     window.setTimeout(() => scrollMessagesToBottom("auto"), 350);
   }
 
-  function handleNewChat() {
+  function handleRefreshChat() {
     startNewChat();
     setMessages([]);
     setDraft("");
     setError(null);
+    setIsMenuOpen(false);
+    setIsRefreshConfirmOpen(false);
     setIsLoading(false);
     setIsLoadingOlder(false);
     setHasMoreMessages(false);
     pendingScrollRef.current = null;
     prependScrollRef.current = null;
     isLoadingOlderRef.current = false;
+  }
+
+  async function handleCopyVisitorId() {
+    if (!visitorId) {
+      return;
+    }
+
+    setIsMenuOpen(false);
+
+    try {
+      await navigator.clipboard.writeText(visitorId);
+      showToast("Visitor ID copied");
+    } catch {
+      setError("Could not copy visitor ID.");
+    }
+  }
+
+  function showToast(message: string) {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage(null), 1800);
   }
 
   async function handleMessageScroll(event: UIEvent<HTMLElement>) {
@@ -300,103 +312,164 @@ export default function Home() {
   }
 
   return (
-    <main className="harold-page fixed inset-x-0 top-[var(--harold-viewport-offset-top,0px)] h-[var(--harold-viewport-height,100dvh)] overflow-hidden">
-      <div className="harold-phone mx-auto flex h-full max-w-[430px] flex-col overflow-hidden">
-        <div className="harold-status-bar relative h-5 px-2 text-[11px] font-bold leading-none">
-          <span className="harold-status-text absolute left-2 top-1/2 flex -translate-y-1/2 items-end gap-[2px]">
-            <i className="fa-solid fa-signal text-[11px]" aria-hidden="true" />
-          </span>
-          <span className="harold-status-text absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            {currentTime}
-          </span>
-          <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center">
-            <span className="harold-battery-body h-[10px] w-[22px] rounded-[3px]" />
-            <span className="harold-battery-cap -ml-px h-[5px] w-[2px] rounded-r-sm" />
-          </span>
-        </div>
-
-        <header className="harold-nav-bar relative flex h-[46px] items-center justify-center px-3 text-white">
+    <HaroldShell
+      title="Harold"
+      onViewportChange={handleViewportChange}
+      trailing={
+        <div ref={menuRef} className="relative">
           <button
             type="button"
-            onClick={handleNewChat}
+            onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
             disabled={!isReady}
-            className="harold-nav-button absolute left-2 rounded-md px-3 py-1.5 text-[13px] font-bold transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+            className="harold-nav-button rounded-md px-3 py-1.5 text-[13px] font-bold leading-none transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-expanded={isMenuOpen}
+            aria-haspopup="menu"
+            aria-label="Open menu"
           >
-            New Chat
+            More
           </button>
-          <div className="harold-title-shadow text-center">
-            <h1 className="text-[21px] font-bold leading-none tracking-tight">
-              Harold
-            </h1>
+          {isMenuOpen ? (
+            <div
+              className="harold-menu absolute right-0 top-[calc(100%+8px)] z-50 w-44 overflow-hidden rounded-xl text-left text-[14px] font-bold text-slate-800"
+              role="menu"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsRefreshConfirmOpen(true);
+                }}
+                className="harold-menu-item"
+                role="menuitem"
+              >
+                Refresh Chat
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyVisitorId}
+                className="harold-menu-item"
+                role="menuitem"
+              >
+                Copy Visitor ID
+              </button>
+              <Link
+                href="/about"
+                className="harold-menu-item block"
+                role="menuitem"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                About This Demo
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      }
+    >
+      <section
+        ref={scrollContainerRef}
+        data-message-scroll
+        onScroll={handleMessageScroll}
+        className="harold-chat-surface scrollbar-none flex-1 overflow-y-auto px-4 py-4"
+      >
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">
+            Loading messages...
           </div>
-        </header>
-
-        <section
-          ref={scrollContainerRef}
-          data-message-scroll
-          onScroll={handleMessageScroll}
-          className="harold-chat-surface scrollbar-none flex-1 overflow-y-auto px-4 py-4"
-        >
-          {isLoading ? (
-            <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">
-              Loading messages...
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-center text-sm font-semibold leading-6 text-slate-500">
-              Send the first message.
-              <br />
-              Harold will learn to answer in Phase 2.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {isLoadingOlder ? (
-                <div className="pb-2 text-center text-xs font-semibold text-slate-500">
-                  Loading older messages...
-                </div>
-              ) : null}
-              {!hasMoreMessages && messages.length >= MESSAGE_PAGE_SIZE ? (
-                <div className="pb-2 text-center text-xs font-semibold text-slate-400">
-                  Start of chat
-                </div>
-              ) : null}
-              {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {error ? (
-          <div className="border-t border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700">
-            {error}
+        ) : messages.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-center text-sm font-semibold leading-6 text-slate-500">
+            Send the first message.
+            <br />
+            Harold will learn to answer in Phase 2.
           </div>
-        ) : null}
+        ) : (
+          <div className="flex flex-col gap-2">
+            {isLoadingOlder ? (
+              <div className="pb-2 text-center text-xs font-semibold text-slate-500">
+                Loading older messages...
+              </div>
+            ) : null}
+            {!hasMoreMessages && messages.length >= MESSAGE_PAGE_SIZE ? (
+              <div className="pb-2 text-center text-xs font-semibold text-slate-400">
+                Start of chat
+              </div>
+            ) : null}
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+          </div>
+        )}
+      </section>
 
-        <form
-          onSubmit={handleSubmit}
-          className="harold-composer-bar flex items-end gap-2 px-2 py-2"
+      {error ? (
+        <div className="border-t border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      <form
+        onSubmit={handleSubmit}
+        className="harold-composer-bar flex items-end gap-2 px-2 py-2"
+      >
+        <textarea
+          ref={draftRef}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={handleDraftKeyDown}
+          onFocus={handleDraftFocus}
+          disabled={!isReady}
+          placeholder="Message"
+          rows={1}
+          className="harold-textbox scrollbar-none min-h-9 min-w-0 flex-1 resize-none rounded-[18px] px-4 py-1.5 text-base leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 disabled:opacity-50"
+        />
+        <button
+          type="submit"
+          disabled={!isReady || trimmedDraft.length === 0}
+          className="harold-send-button rounded-full px-4 py-1.5 text-sm font-bold transition hover:brightness-105 disabled:cursor-not-allowed"
         >
-          <textarea
-            ref={draftRef}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={handleDraftKeyDown}
-            onFocus={handleDraftFocus}
-            disabled={!isReady}
-            placeholder="Message"
-            rows={1}
-            className="harold-textbox scrollbar-none min-h-9 min-w-0 flex-1 resize-none rounded-[18px] px-4 py-1.5 text-base leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={!isReady || trimmedDraft.length === 0}
-            className="harold-send-button rounded-full px-4 py-1.5 text-sm font-bold transition hover:brightness-105 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
-        </form>
-      </div>
-    </main>
+          Send
+        </button>
+      </form>
+
+      {isRefreshConfirmOpen ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/25 px-8">
+          <div className="harold-alert w-full max-w-[330px] overflow-hidden rounded-2xl text-center text-white">
+            <div className="px-5 pb-5 pt-6">
+              <h2 className="harold-title-shadow text-[22px] font-bold leading-tight">
+                Refresh Chat
+              </h2>
+              <p className="mt-2 text-[15px] font-semibold leading-5 text-white/90">
+                Start a fresh chat with a new visitor ID? Your old messages stay
+                stored under the previous ID.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 border-t border-white/25">
+              <button
+                type="button"
+                onClick={() => setIsRefreshConfirmOpen(false)}
+                className="harold-alert-button border-r border-white/25"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRefreshChat}
+                className="harold-alert-button font-extrabold"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {toastMessage ? (
+        <div className="absolute inset-x-0 bottom-20 z-40 flex justify-center px-4">
+          <div className="harold-toast rounded-full px-4 py-2 text-sm font-bold text-white">
+            {toastMessage}
+          </div>
+        </div>
+      ) : null}
+    </HaroldShell>
   );
 }
 

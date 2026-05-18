@@ -41,7 +41,11 @@ Shared visual treatments live in `app/globals.css`. Prefer composing these class
 | `.harold-status-bar` | Top status bar chrome |
 | `.harold-nav-bar` | Main navigation chrome |
 | `.harold-nav-button` | Beveled blue nav button |
+| `.harold-menu`, `.harold-menu-item` | Top-bar dropdown menu |
+| `.harold-alert`, `.harold-alert-button` | Custom confirmation alert |
+| `.harold-toast` | Small temporary feedback message |
 | `.harold-chat-surface` | Transcript background |
+| `.harold-app-screen`, `.harold-app-screen-exit`, `.harold-about-surface`, `.harold-about-card` | Secondary app screens, transitions, and cards |
 | `.harold-composer-bar` | Bottom input bar |
 | `.harold-textbox` | Pill multiline message input |
 | `.harold-send-button` | Blue pill send button |

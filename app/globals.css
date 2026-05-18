@@ -73,6 +73,24 @@
     background: var(--harold-chat-bg);
   }
 
+  .harold-about-surface {
+    background: linear-gradient(to bottom, #eef4f8, #d7e4ed);
+  }
+
+  .harold-app-screen {
+    animation: harold-slide-in 220ms ease-out;
+  }
+
+  .harold-app-screen-exit {
+    animation: harold-slide-out 180ms ease-in forwards;
+  }
+
+  .harold-about-card {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.92), rgba(238, 244, 248, 0.88));
+    border: 1px solid rgba(116, 132, 148, 0.42);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18), inset 0 1px rgba(255, 255, 255, 0.9);
+  }
+
   .harold-title-shadow {
     filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.55));
   }
@@ -96,6 +114,56 @@
     border: 1px solid #1b577d;
     box-shadow: var(--harold-control-shadow);
     color: white;
+  }
+
+  .harold-menu {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.97), #dce5ed);
+    border: 1px solid #7d8c98;
+    box-shadow: 0 9px 18px rgba(15, 23, 42, 0.36), inset 0 1px rgba(255, 255, 255, 0.9);
+  }
+
+  .harold-menu-item {
+    display: block;
+    width: 100%;
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid rgba(100, 116, 139, 0.28);
+    text-align: left;
+    text-shadow: 0 1px rgba(255, 255, 255, 0.8);
+  }
+
+  .harold-menu-item:last-child {
+    border-bottom: 0;
+  }
+
+  .harold-menu-item:hover,
+  .harold-menu-item:focus {
+    background: linear-gradient(to bottom, #f8fbff, #c9d9e6);
+    outline: none;
+  }
+
+  .harold-alert {
+    background: linear-gradient(to bottom, rgba(74, 99, 153, 0.96), rgba(24, 47, 105, 0.98) 47%, rgba(15, 35, 82, 0.98));
+    border: 2px solid rgba(232, 241, 255, 0.86);
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.48), inset 0 1px rgba(255, 255, 255, 0.55), inset 0 -1px rgba(0, 0, 0, 0.55);
+  }
+
+  .harold-alert-button {
+    padding: 0.9rem 0.75rem;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04));
+    text-shadow: 0 -1px rgba(0, 0, 0, 0.65);
+  }
+
+  .harold-alert-button:hover,
+  .harold-alert-button:focus {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.08));
+    outline: none;
+  }
+
+  .harold-toast {
+    background: linear-gradient(to bottom, rgba(74, 99, 153, 0.94), rgba(24, 47, 105, 0.96));
+    border: 1px solid rgba(232, 241, 255, 0.72);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.4), inset 0 1px rgba(255, 255, 255, 0.45);
+    text-shadow: 0 -1px rgba(0, 0, 0, 0.6);
   }
 
   .harold-composer-bar {
@@ -141,5 +209,29 @@
     background: linear-gradient(to bottom, white, #f5f5f5, #dcdcdc);
     border: 1px solid #a4a4a4;
     color: #0f172a;
+  }
+
+  @keyframes harold-slide-in {
+    from {
+      opacity: 0.8;
+      transform: translateX(80%);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes harold-slide-out {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    to {
+      opacity: 0.8;
+      transform: translateX(80%);
+    }
   }
 }
