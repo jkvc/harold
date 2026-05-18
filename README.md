@@ -43,6 +43,7 @@ app/
 docs/                 # Developer documentation
 drizzle/              # SQL migrations
 notes/                # Design notes and scratch
+scripts/              # Local debugging and inspection utilities
 ```
 
 ## Database
@@ -75,6 +76,16 @@ pnpm test              # Vitest
 ```
 
 Pre-push hook runs all three in parallel, then build sequentially.
+
+## Debugging
+
+Dump database state for a visitor:
+
+```bash
+./scripts/inspect-harold.sh <visitorId> [all|messages|visitor-tables|schema|db|migrations|future]
+```
+
+The default `all` command prints database metadata, schema, applied migrations, every visitor-scoped table, current messages, and known future Harold tables when they exist.
 
 ## Conventions
 
