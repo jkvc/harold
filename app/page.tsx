@@ -774,12 +774,12 @@ function MessageBubble({
       }`}
     >
       <div
-        className={`flex max-w-[78%] flex-col ${
+        className={`flex min-w-0 max-w-[78%] flex-col ${
           isUser ? "items-end" : "items-start"
         } ${hasReply ? "pt-5" : ""}`}
       >
         <div
-          className={`harold-bubble relative rounded-[18px] px-4 py-2 text-[16px] leading-5 ${bubbleRoleClass} ${
+          className={`harold-bubble relative min-w-0 max-w-full rounded-[18px] px-4 py-2 text-[16px] leading-5 ${bubbleRoleClass} ${
             message.status === "failed" ? "opacity-60" : ""
           }`}
         >
@@ -792,7 +792,7 @@ function MessageBubble({
               <span className="truncate align-bottom">{replyTo.content}</span>
             </div>
           ) : null}
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          <p className="harold-message-text whitespace-pre-wrap">{message.content}</p>
           {hasReactions ? (
             <div
               className={`harold-reaction-badge absolute ${reactionPositionClass} -bottom-3 flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[12px] font-bold leading-none`}

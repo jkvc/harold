@@ -221,6 +221,11 @@
     color: #0f172a;
   }
 
+  .harold-message-text {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   .harold-typing-bubble {
     min-width: 52px;
     background: linear-gradient(to bottom, rgba(82, 97, 113, 0.92), rgba(51, 65, 85, 0.9), rgba(30, 41, 59, 0.92));
