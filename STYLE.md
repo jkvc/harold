@@ -51,6 +51,7 @@ Shared visual treatments live in `app/globals.css`. Prefer composing these class
 | `.harold-textbox` | Pill multiline message input |
 | `.harold-send-button` | Blue pill send button |
 | `.harold-bubble`, `.harold-bubble-user`, `.harold-bubble-harold` | Chat bubble base and role variants |
+| `.harold-reply-bookmark`, `.harold-reaction-badge` | Attached reply and tapback-style badges for chat bubbles |
 
 ## Icons
 

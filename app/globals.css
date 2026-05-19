@@ -32,6 +32,16 @@
     --harold-inset-highlight: inset 0 1px rgba(255, 255, 255, 0.65);
     --harold-control-shadow: inset 0 1px rgba(255, 255, 255, 0.5), inset 0 -1px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.3);
     --harold-bubble-shadow: 0 1px 2px rgba(0, 0, 0, 0.32), inset 0 1px rgba(255, 255, 255, 0.78);
+    --harold-badge-shadow: 0 1px 2px rgba(15, 23, 42, 0.24), inset 0 1px rgba(255, 255, 255, 0.84);
+    --harold-reply-user-top: #f5fcff;
+    --harold-reply-user-mid: #b7e3f7;
+    --harold-reply-user-bottom: #83c8ea;
+    --harold-reply-harold-top: #ffffff;
+    --harold-reply-harold-mid: #f3f4f6;
+    --harold-reply-harold-bottom: #d7d7d7;
+    --harold-reaction-top: #ffffff;
+    --harold-reaction-mid: #f5f7f9;
+    --harold-reaction-bottom: #dbe2e8;
   }
 }
 
@@ -211,18 +221,33 @@
     color: #0f172a;
   }
 
-  .harold-reply-preview {
-    box-shadow: inset 0 1px rgba(255, 255, 255, 0.5), inset 0 -1px rgba(0, 0, 0, 0.08);
+  .harold-reply-bookmark {
+    display: flex;
+    align-items: center;
+    box-shadow: var(--harold-badge-shadow);
+    text-shadow: 0 1px rgba(255, 255, 255, 0.62);
+    transform: translateY(calc(-100% - 2px));
   }
 
-  .harold-reply-preview-user {
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.2));
-    border: 1px solid rgba(45, 142, 192, 0.36);
+  .harold-reply-bookmark-user {
+    background: linear-gradient(to bottom, var(--harold-reply-user-top), var(--harold-reply-user-mid), var(--harold-reply-user-bottom));
+    border: 1px solid rgba(45, 142, 192, 0.52);
+    color: rgba(18, 52, 72, 0.78);
   }
 
-  .harold-reply-preview-harold {
-    background: linear-gradient(to bottom, rgba(226, 232, 240, 0.88), rgba(203, 213, 225, 0.58));
-    border: 1px solid rgba(148, 163, 184, 0.55);
+  .harold-reply-bookmark-harold {
+    background: linear-gradient(to bottom, var(--harold-reply-harold-top), var(--harold-reply-harold-mid), var(--harold-reply-harold-bottom));
+    border: 1px solid rgba(148, 148, 148, 0.68);
+    color: rgba(71, 85, 105, 0.9);
+  }
+
+  .harold-reaction-badge {
+    background: linear-gradient(to bottom, var(--harold-reaction-top), var(--harold-reaction-mid), var(--harold-reaction-bottom));
+    border: 1px solid rgba(116, 132, 148, 0.72);
+    box-shadow: var(--harold-badge-shadow);
+    color: #334155;
+    text-align: center;
+    text-shadow: 0 1px rgba(255, 255, 255, 0.75);
   }
 
   .harold-debug-shell {

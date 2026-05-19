@@ -755,47 +755,59 @@ function MessageBubble({
   replyTo?: ChatMessage;
 }) {
   const isUser = message.role === "user";
+  const reactionEmojis = message.reactions.map((reaction) => reaction.emoji);
+  const hasReply = Boolean(replyTo);
+  const hasReactions = reactionEmojis.length > 0;
+  const bubbleRoleClass = isUser ? "harold-bubble-user" : "harold-bubble-harold";
+  const replyRoleClass = isUser
+    ? "harold-reply-bookmark-user"
+    : "harold-reply-bookmark-harold";
+  const reactionPositionClass = isUser ? "-left-2.5" : "-right-2.5";
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div
+      className={`flex ${isUser ? "justify-end" : "justify-start"} ${
+        hasReactions ? "pb-3" : ""
+      }`}
+    >
       <div
-        className={`harold-bubble relative max-w-[78%] rounded-[18px] px-4 py-2 text-[16px] leading-5 ${
-          isUser ? "harold-bubble-user" : "harold-bubble-harold"
-        } ${message.status === "failed" ? "opacity-60" : ""}`}
+        className={`flex max-w-[78%] flex-col ${
+          isUser ? "items-end" : "items-start"
+        } ${hasReply ? "pt-5" : ""}`}
       >
-        {replyTo ? (
-          <div
-            className={`harold-reply-preview mb-2 rounded-[12px] px-2.5 py-2 text-[12px] font-semibold leading-4 ${
-              isUser
-                ? "harold-reply-preview-user text-[#123448]/80"
-                : "harold-reply-preview-harold text-slate-600"
-            }`}
-          >
-            <span className="line-clamp-2 break-words">{replyTo.content}</span>
-          </div>
-        ) : null}
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
-        {message.reactions.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {message.reactions.map((reaction) => (
-              <span
-                key={reaction.id}
-                className="rounded-full bg-white/55 px-2 py-0.5 text-xs font-bold"
-              >
-                {reaction.emoji}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {message.status ? (
-          <p
-            className={`mt-1 text-right text-[11px] font-semibold ${
-              isUser ? "text-[#29566b]/70" : "text-slate-500"
-            }`}
-          >
-            {message.status === "pending" ? "Sending..." : "Failed"}
-          </p>
-        ) : null}
+        <div
+          className={`harold-bubble relative rounded-[18px] px-4 py-2 text-[16px] leading-5 ${bubbleRoleClass} ${
+            message.status === "failed" ? "opacity-60" : ""
+          }`}
+        >
+          {replyTo ? (
+            <div
+              className={`harold-reply-bookmark absolute left-0 top-1.5 max-w-[120px] rounded-full px-2.5 py-1.5 text-[11px] leading-none ${replyRoleClass}`}
+              title={`Replying to: ${replyTo.content}`}
+            >
+              <span className="mr-1 opacity-75">↩</span>
+              <span className="truncate align-bottom">{replyTo.content}</span>
+            </div>
+          ) : null}
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          {hasReactions ? (
+            <div
+              className={`harold-reaction-badge absolute ${reactionPositionClass} -bottom-3 flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[12px] font-bold leading-none`}
+              aria-label={`Reactions: ${reactionEmojis.join(" ")}`}
+            >
+              {reactionEmojis.join(" ")}
+            </div>
+          ) : null}
+          {message.status ? (
+            <p
+              className={`mt-1 text-right text-[11px] font-semibold ${
+                isUser ? "text-[#29566b]/70" : "text-slate-500"
+              }`}
+            >
+              {message.status === "pending" ? "Sending..." : "Failed"}
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
