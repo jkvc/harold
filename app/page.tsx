@@ -543,8 +543,11 @@ export default function Home() {
             ))}
             {isHaroldTyping ? (
               <div className="flex justify-start">
-                <div className="harold-bubble harold-bubble-harold rounded-[18px] px-4 py-2 text-[13px] font-semibold text-slate-500">
-                  Harold is typing...
+                <div
+                  className="harold-typing-bubble rounded-[18px] px-4 py-2 text-[16px] font-semibold leading-5"
+                  aria-label="Harold is typing"
+                >
+                  ...
                 </div>
               </div>
             ) : null}
