@@ -4,6 +4,12 @@ import { getDb } from "@/app/lib/db";
 import { runs } from "@/app/lib/db/schema";
 import { publishEvent } from "@/app/lib/event-bus";
 import {
+  completeOpenRouter,
+  SEND_MESSAGE_STAGGER_MS,
+  shouldStaggerBeforeTool,
+  usesOpenRouterProvider,
+} from "@/app/lib/harold/provider";
+import {
   DEFAULT_HAROLD_MODEL,
   HAROLD_SYSTEM_PROMPT,
 } from "@/app/lib/harold/system-prompt";
@@ -16,6 +22,7 @@ import {
 } from "@/app/lib/harold/state";
 import {
   executeHaroldTool,
+  HAROLD_CLIENT_TOOLS,
   HAROLD_TOOLS,
   hasUnreadInboxMessages,
   type InboxWatermark,
@@ -133,15 +140,28 @@ export async function runHaroldLoop({
 
     while (iteration < MAX_ITERATIONS) {
       iteration += 1;
-      const response = await getAnthropic().messages.create({
-        model,
-        max_tokens: 1200,
-        system: HAROLD_SYSTEM_PROMPT,
-        tools: HAROLD_TOOLS as never,
-        messages: buildModelMessages(previousMessages, turnMessages) as never,
-      });
+      const modelMessages = buildModelMessages(previousMessages, turnMessages);
+      const assistantContent = usesOpenRouterProvider(model)
+        ? (
+            await completeOpenRouter({
+              apiKey: getOpenRouterApiKey(),
+              model,
+              system: HAROLD_SYSTEM_PROMPT,
+              messages: modelMessages,
+              clientTools: HAROLD_CLIENT_TOOLS,
+              maxTokens: 1200,
+            })
+          ).content
+        : ((
+            await getAnthropic().messages.create({
+              model,
+              max_tokens: 1200,
+              system: HAROLD_SYSTEM_PROMPT,
+              tools: HAROLD_TOOLS as never,
+              messages: modelMessages as never,
+            })
+          ).content as unknown[]);
 
-      const assistantContent = response.content as unknown[];
       turnMessages.push({ role: "assistant", content: assistantContent });
       await publishAssistantTextEvents(visitorId, runId, assistantContent);
       await publishAssistantThinkingEvents(visitorId, runId, assistantContent);
@@ -178,7 +198,17 @@ export async function runHaroldLoop({
       }
 
       const toolResults = [];
+      let previousToolName: string | null = null;
       for (const block of toolUseBlocks) {
+        if (
+          shouldStaggerBeforeTool({
+            toolName: block.name,
+            previousToolName,
+          })
+        ) {
+          await sleep(SEND_MESSAGE_STAGGER_MS);
+        }
+
         await publishEvent(visitorId, {
           type: "tool_start",
           id: block.id,
@@ -209,6 +239,7 @@ export async function runHaroldLoop({
           tool_use_id: block.id,
           content: JSON.stringify(result),
         });
+        previousToolName = block.name;
       }
 
       turnMessages.push({ role: "user", content: toolResults });
@@ -295,6 +326,18 @@ function getAnthropic() {
   }
 
   return anthropic;
+}
+
+function getOpenRouterApiKey() {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is required for OpenRouter models");
+  }
+  return apiKey;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function updateRunMessages(runId: string, turnMessages: ClaudeMessage[]) {

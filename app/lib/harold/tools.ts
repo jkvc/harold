@@ -6,6 +6,7 @@ import {
   messages,
 } from "@/app/lib/db/schema";
 import { publishEvent } from "@/app/lib/event-bus";
+import type { HaroldClientTool } from "@/app/lib/harold/provider";
 import {
   serializeMessage,
   serializeReaction,
@@ -22,7 +23,7 @@ export type InboxWatermark = {
   messageId: string;
 };
 
-export const HAROLD_TOOLS: Record<string, unknown>[] = [
+export const HAROLD_CLIENT_TOOLS: HaroldClientTool[] = [
   {
     name: "check_inbox",
     description:
@@ -71,6 +72,11 @@ export const HAROLD_TOOLS: Record<string, unknown>[] = [
       additionalProperties: false,
     },
   },
+];
+
+/** Anthropic Messages API tools (client tools + Anthropic server web search). */
+export const HAROLD_TOOLS: Record<string, unknown>[] = [
+  ...HAROLD_CLIENT_TOOLS,
   {
     type: "web_search_20260209",
     name: "web_search",

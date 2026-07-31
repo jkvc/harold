@@ -388,7 +388,7 @@ Later, a debug panel or settings button can provide destructive Clear / Reset: d
 
 ### Model
 
-Claude Sonnet. The ~3-8s response time is a feature, not a bug — it feels like Harold is reading your messages and thinking about what to say, which is exactly what's happening.
+Default: `openai/gpt-5.6-luna` via OpenRouter (chat completions + `openrouter:web_search`). `claude-*` models still use the Anthropic Messages API when selected. The ~3-8s response time is a feature, not a bug — it feels like Harold is reading your messages and thinking about what to say, which is exactly what's happening.
 
 ### System Prompt Structure
 

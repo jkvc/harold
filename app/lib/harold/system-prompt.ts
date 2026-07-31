@@ -8,4 +8,4 @@ Core behavior:
 - You may use web search when current facts would improve the answer, but do not expose tool details.
 - If there is nothing new in the inbox, sleep without sending a message.`;
 
-export const DEFAULT_HAROLD_MODEL = "claude-sonnet-4-6";
+export const DEFAULT_HAROLD_MODEL = "openai/gpt-5.6-luna";

@@ -17,6 +17,7 @@ Create `.env.local` with a Neon Postgres connection string and the Phase 2 runti
 ```bash
 DATABASE_URL="postgresql://..."
 REDIS_URL="redis://..."
+OPENROUTER_API_KEY="..."
 CLAUDE_API_KEY="..."
 QSTASH_TOKEN="..."
 QSTASH_CURRENT_SIGNING_KEY="..."
@@ -25,7 +26,7 @@ VERCEL_AUTOMATION_BYPASS_SECRET="..."
 SITE_URL="http://localhost:3000"
 ```
 
-The app uses the Neon serverless HTTP driver from route handlers running on the Node.js runtime. `REDIS_URL` must be a TCP Redis URL for `ioredis`, not an Upstash REST URL. `SITE_URL` is optional locally; when absent the app self-calls `http://localhost:3000`, and on Vercel it falls back to `VERCEL_URL`.
+The default model is `openai/gpt-5.6-luna` via OpenRouter (`OPENROUTER_API_KEY`). `CLAUDE_API_KEY` (or `ANTHROPIC_API_KEY`) is still required for `claude-*` model overrides, including the Haiku integration suite. The app uses the Neon serverless HTTP driver from route handlers running on the Node.js runtime. `REDIS_URL` must be a TCP Redis URL for `ioredis`, not an Upstash REST URL. `SITE_URL` is optional locally; when absent the app self-calls `http://localhost:3000`, and on Vercel it falls back to `VERCEL_URL`.
 
 ## Getting Started
 
